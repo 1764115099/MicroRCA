@@ -20,15 +20,17 @@ from sklearn import preprocessing
 
 ## =========== Data collection ===========
 
-metric_step = '5s'
+metric_step = '10s'
 smoothing_window = 12
 
 # kubectl get nodes -o wide | awk -F ' ' '{print $1 " : " $6":9100"}'
 node_dict = {
-                'kubernetes-minion-group-103j' : '10.166.0.21:9100',
-                'kubernetes-minion-group-k2nz' : '10.166.15.235:9100',
-                'kubernetes-minion-group-kvcr' : '10.166.0.13:9100',
-                'kubernetes-minion-group-r23j' : '10.166.0.14:9100',
+                'node-18-237' : '10.0.18.237:9100',
+                'node-18-239' : '10.0.18.239:9100',
+                'node-18-245' : '10.0.18.245:9100',
+                'node-19-0' : '10.0.19.0:9100',
+                'node-19-24' : '10.0.19.24:9100',
+                'node-19-32' : '10.0.19.32:9100',
         }
 
 
@@ -50,9 +52,9 @@ def latency_source_50(prom_url, start_time, end_time, faults_name):
         dest_svc = result['metric']['destination_workload']
         src_svc = result['metric']['source_workload']
         name = src_svc + '_' + dest_svc
-        values = result['values']
+        values = result['value']
 
-        values = list(zip(*values))
+        values = list(zip(values))
         if 'timestamp' not in latency_df:
             timestamp = values[0]
             latency_df['timestamp'] = timestamp
@@ -73,10 +75,10 @@ def latency_source_50(prom_url, start_time, end_time, faults_name):
         dest_svc = result['metric']['destination_workload']
         src_svc = result['metric']['source_workload']
         name = src_svc + '_' + dest_svc
-#        print(svc)
-        values = result['values']
+        # print(name)
+        values = result['value']
 
-        values = list(zip(*values))
+        values = list(zip(values))
         if 'timestamp' not in latency_df:
             timestamp = values[0]
             latency_df['timestamp'] = timestamp
@@ -107,13 +109,13 @@ def latency_destination_50(prom_url, start_time, end_time, faults_name):
         dest_svc = result['metric']['destination_workload']
         src_svc = result['metric']['source_workload']
         name = src_svc + '_' + dest_svc
-        values = result['values']
+        values = result['value']
 
-        values = list(zip(*values))
+        values = list(zip(values))
         if 'timestamp' not in latency_df:
             timestamp = values[0]
-            latency_df['timestamp'] = timestamp
-            latency_df['timestamp'] = latency_df['timestamp'].astype('datetime64[s]')
+            latency_df['timestamps'] = timestamp
+            latency_df['timestamps'] = latency_df['timestamps'].astype('datetime64[s]')
         metric = values[1]
         latency_df[name] = pd.Series(metric)
         latency_df[name] = latency_df[name].astype('float64')  * 1000
@@ -131,19 +133,19 @@ def latency_destination_50(prom_url, start_time, end_time, faults_name):
         src_svc = result['metric']['source_workload']
         name = src_svc + '_' + dest_svc
 #        print(svc)
-        values = result['values']
+        values = result['value']
 
-        values = list(zip(*values))
+        values = list(zip(values))
         if 'timestamp' not in latency_df:
             timestamp = values[0]
-            latency_df['timestamp'] = timestamp
-            latency_df['timestamp'] = latency_df['timestamp'].astype('datetime64[s]')
+            latency_df['timestamps'] = timestamp
+            latency_df['timestamps'] = latency_df['timestamps'].astype('datetime64[s]')
         metric = values[1]
         latency_df[name] = pd.Series(metric)
         latency_df[name] = latency_df[name].astype('float64').rolling(window=smoothing_window, min_periods=1).mean()
 
     filename = faults_name + '_latency_destination_50.csv'
-    latency_df.set_index('timestamp')
+    latency_df.set_index('timestamps')
     latency_df.to_csv(filename)
     return latency_df
 
@@ -162,9 +164,9 @@ def svc_metrics(prom_url, start_time, end_time, faults_name):
         nodename = result['metric']['instance']
 
 #        print(svc)
-        values = result['values']
+        values = result['value']
 
-        values = list(zip(*values))
+        values = list(zip(values))
         if 'timestamp' not in df:
             timestamp = values[0]
             df['timestamp'] = timestamp
@@ -173,9 +175,10 @@ def svc_metrics(prom_url, start_time, end_time, faults_name):
         df['ctn_cpu'] = metric
         df['ctn_cpu'] = df['ctn_cpu'].astype('float64')
 
-        df['ctn_network'] = ctn_network(start_time, end_time, pod_name)
+        # print(start_time,end_time,pod_name)
+        df['ctn_network'] = ctn_network(prom_url,start_time, end_time, pod_name)
         df['ctn_network'] = df['ctn_network'].astype('float64')
-        df['ctn_memory'] = ctn_memory(start_time, end_time, pod_name)
+        df['ctn_memory'] = ctn_memory(prom_url,start_time, end_time, pod_name)
         df['ctn_memory'] = df['ctn_memory'].astype('float64')
 
 #        response = requests.get('http://localhost:9090/api/v1/query',
@@ -189,19 +192,25 @@ def svc_metrics(prom_url, start_time, end_time, faults_name):
 #        instance = results[0]['metric']['instance']
         instance = node_dict[nodename]
 
-        df_node_cpu = node_cpu(start_time, end_time, instance)
-        df = pd.merge(df, df_node_cpu, how='left', on='timestamp')
-
-
-        df_node_network = node_network(start_time, end_time, instance)
-        df = pd.merge(df, df_node_network, how='left', on='timestamp')
-
-        df_node_memory = node_memory(start_time, end_time, instance)
-        df = pd.merge(df, df_node_memory, how='left', on='timestamp')
+        # df_node_cpu = node_cpu(prom_url,start_time, end_time, instance)
+        # df = pd.merge(df, df_node_cpu, how='left', on='timestamp')
+        df['node_cpu'] = node_cpu(prom_url, start_time, end_time, instance)
+        df['node_cpu'] = df['node_cpu'].astype('float64')
+        #
+        # df_node_network = node_network(prom_url,start_time, end_time, instance)
+        # df = pd.merge(df, df_node_network, how='left', on='timestamp')
+        df['node_network'] = node_network(prom_url, start_time, end_time, instance)
+        df['node_network'] = df['node_network'].astype('float64')
+        #
+        # df_node_memory = node_memory(prom_url,start_time, end_time, instance)
+        # df = pd.merge(df, df_node_memory, how='left', on='timestamp')
+        df['node_memory'] = node_memory(prom_url, start_time, end_time, instance)
+        df['node_memory'] = df['node_memory'].astype('float64')
     
 
         filename = faults_name + '_' + svc + '.csv'
         df.set_index('timestamp')
+        # print(df)
         df.to_csv(filename)
 
 def ctn_network(prom_url, start_time, end_time, pod_name):
@@ -212,9 +221,9 @@ def ctn_network(prom_url, start_time, end_time, pod_name):
                                     'step': metric_step})
     results = response.json()['data']['result']
 
-    values = results[0]['values']
+    values = results[0]['value']
 
-    values = list(zip(*values))
+    values = list(zip(values))
     metric = pd.Series(values[1])
     return metric
 
@@ -227,70 +236,76 @@ def ctn_memory(prom_url, start_time, end_time, pod_name):
                                     'step': metric_step})
     results = response.json()['data']['result']
 
-    values = results[0]['values']
+    values = results[0]['value']
 
-    values = list(zip(*values))
+    values = list(zip(values))
     metric = pd.Series(values[1])
     return metric
 
 
 def node_network(prom_url, start_time, end_time, instance):
     response = requests.get(prom_url,
-                            params={'query': 'rate(node_network_transmit_packets{device="eth0", instance="%s"}[1m]) / 1000' % instance,
+                            params={'query': 'rate(node_network_transmit_packets_total{device="eth0", instance="%s"}[1m]) / 1000' % instance,
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
-    values = results[0]['values']
+    values = results[0]['value']
 
-    values = list(zip(*values))
-    df = pd.DataFrame()
-    df['timestamp'] = values[0]
-    df['timestamp'] = df['timestamp'].astype('datetime64[s]')
-    df['node_network'] = pd.Series(values[1])
-    df['node_network'] = df['node_network'].astype('float64')
-#    return metric
-    return df
+    values = list(zip(values))
+    # df = pd.DataFrame()
+    # df['timestamp'] = values[0]
+    # df['timestamp'] = df['timestamp'].astype('datetime64[s]')
+    # df['node_network'] = pd.Series(values[1])
+    # df['node_network'] = df['node_network'].astype('float64')
+    # print(instance, df)
+    metric = pd.Series(values[1])
+    return metric
+#     return df
 
 def node_cpu(prom_url, start_time, end_time, instance):
     response = requests.get(prom_url,
-                            params={'query': 'sum(rate(node_cpu{mode != "idle",  mode!= "iowait", mode!~"^(?:guest.*)$", instance="%s" }[1m])) / count(node_cpu{mode="system", instance="%s"})' % (instance, instance),
+                            params={'query': 'sum(rate(node_cpu_seconds_total{mode != "idle",  mode!= "iowait", mode!~"^(?:guest.*)$", instance="%s" }[1m])) / count(node_cpu_seconds_total{mode="system", instance="%s"})' % (instance, instance),
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
-    values = results[0]['values']
-    values = list(zip(*values))
+    values = results[0]['value']
+    values = list(zip(values))
 #    metric = values[1]
 #    print(instance, len(metric))
 #    print(values[0])
-    df = pd.DataFrame()
-    df['timestamp'] = values[0]
-    df['timestamp'] = df['timestamp'].astype('datetime64[s]')
-    df['node_cpu'] = pd.Series(values[1])
-    df['node_cpu'] = df['node_cpu'].astype('float64')
-#    return metric
-    return df
+#     df = pd.DataFrame()
+#     df['timestamp'] = values[0]
+#     df['timestamp'] = df['timestamp'].astype('datetime64[s]')
+#     df['node_cpu'] = pd.Series(values[1])
+#     df['node_cpu'] = df['node_cpu'].astype('float64')
+#     print(instance, df)
+    metric = pd.Series(values[1])
+    return metric
+    # return df
 
 def node_memory(prom_url, start_time, end_time, instance):
     response = requests.get(prom_url,
-                            params={'query': '1 - sum(node_memory_MemAvailable{instance="%s"}) / sum(node_memory_MemTotal{instance="%s"})' % (instance, instance),
+                            params={'query': '1 - sum(node_memory_MemAvailable_bytes{instance="%s"}) / sum(node_memory_MemTotal_bytes{instance="%s"})' % (instance, instance),
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
-    values = results[0]['values']
+    values = results[0]['value']
 
-    values = list(zip(*values))
+    values = list(zip(values))
 #    metric = values[1]
 #    return metric
-    df = pd.DataFrame()
-    df['timestamp'] = values[0]
-    df['timestamp'] = df['timestamp'].astype('datetime64[s]')
-    df['node_memory'] = pd.Series(values[1])
-    df['node_memory'] = df['node_memory'].astype('float64')
-#    return metric
-    return df
+#     df = pd.DataFrame()
+#     df['timestamp'] = values[0]
+#     df['timestamp'] = df['timestamp'].astype('datetime64[s]')
+#     df['node_memory'] = pd.Series(values[1])
+#     df['node_memory'] = df['node_memory'].astype('float64')
+#     print(instance, df)
+    metric = pd.Series(values[1])
+    return metric
+    # return df
 
 # Create Graph
 def mpg(prom_url, faults_name):
@@ -478,10 +493,10 @@ def anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha):
     # Get the subgraph of anomaly
     anomaly_graph = nx.DiGraph()
     for node in nodes:
-#        print(node)
+        # print(node)
         for u, v, data in DG.in_edges(node, data=True):
             edge = (u,v)
-#            print(edge)
+            # print(edge)
             if edge in edges:
                 data = alpha
             else:
@@ -586,7 +601,7 @@ if __name__ == '__main__':
 
     latency_df_source = latency_source_50(prom_url, start_time, end_time, faults_name)
     latency_df_destination = latency_destination_50(prom_url, start_time, end_time, faults_name)
-    latency_df = latency_df_destination.add(latency_df_source) 
+    latency_df = latency_df_destination.add(latency_df_source)
     
     
     svc_metrics(prom_url, start_time, end_time, faults_name)
@@ -595,6 +610,7 @@ if __name__ == '__main__':
 
     # anomaly detection on response time of service invocation
     anomalies = birch_ad_with_smoothing(latency_df, ad_threshold)
+    print("------", anomalies)
     
     # get the anomalous service
     anomaly_nodes = []
@@ -611,7 +627,7 @@ if __name__ == '__main__':
     anomaly_score_new = []
     for anomaly_target in anomaly_score:
         node = anomaly_target[0]
-#                        print(anomaly_target[0])
+        # print(anomaly_target[0])
         if DG.nodes[node]['type'] == 'service':
             anomaly_score_new.append(anomaly_target)
     print(anomaly_score_new)
