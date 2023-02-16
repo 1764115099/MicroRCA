@@ -42,15 +42,15 @@ def latency_source_50(prom_url, start_time, end_time, faults_name):
 
 
     response = requests.get(prom_url,
-                            params={'query': 'histogram_quantile(0.50, sum(irate(istio_request_duration_seconds_bucket{reporter=\"source\", destination_workload_namespace=\"sock-shop\"}[1m])) by (destination_workload, source_workload, le))',
+                            params={'query': 'histogram_quantile(0.50, sum(irate(istio_request_duration_seconds_bucket{reporter=\"source\", destination_workload_namespace=\"sock-shop\"}[1m])) by (destination_app, source_app, le))',
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
 
     for result in results:
-        dest_svc = result['metric']['destination_workload']
-        src_svc = result['metric']['source_workload']
+        dest_svc = result['metric']['destination_app']
+        src_svc = result['metric']['source_app']
         name = src_svc + '_' + dest_svc
         values = result['value']
 
@@ -65,15 +65,15 @@ def latency_source_50(prom_url, start_time, end_time, faults_name):
 
 
     response = requests.get(prom_url,
-                            params={'query': 'sum(irate(istio_tcp_sent_bytes_total{reporter=\"source\"}[1m])) by (destination_workload, source_workload) / 1000',
+                            params={'query': 'sum(irate(istio_tcp_sent_bytes_total{reporter=\"source\"}[1m])) by (destination_app, source_app) / 1000',
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
 
     for result in results:
-        dest_svc = result['metric']['destination_workload']
-        src_svc = result['metric']['source_workload']
+        dest_svc = result['metric']['destination_app']
+        src_svc = result['metric']['source_app']
         name = src_svc + '_' + dest_svc
         # print(name)
         values = result['value']
@@ -99,15 +99,15 @@ def latency_destination_50(prom_url, start_time, end_time, faults_name):
 
 
     response = requests.get(prom_url,
-                            params={'query': 'histogram_quantile(0.50, sum(irate(istio_request_duration_seconds_bucket{reporter=\"destination\", destination_workload_namespace=\"sock-shop\"}[1m])) by (destination_workload, source_workload, le))',
+                            params={'query': 'histogram_quantile(0.50, sum(irate(istio_request_duration_seconds_bucket{reporter=\"destination\", destination_workload_namespace=\"sock-shop\"}[1m])) by (destination_app, source_app, le))',
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
 
     for result in results:
-        dest_svc = result['metric']['destination_workload']
-        src_svc = result['metric']['source_workload']
+        dest_svc = result['metric']['destination_app']
+        src_svc = result['metric']['source_app']
         name = src_svc + '_' + dest_svc
         values = result['value']
 
@@ -122,15 +122,15 @@ def latency_destination_50(prom_url, start_time, end_time, faults_name):
 
 
     response = requests.get(prom_url,
-                            params={'query': 'sum(irate(istio_tcp_sent_bytes_total{reporter=\"destination\"}[1m])) by (destination_workload, source_workload) / 1000',
+                            params={'query': 'sum(irate(istio_tcp_sent_bytes_total{reporter=\"destination\"}[1m])) by (destination_app, source_app) / 1000',
                                     'start': start_time,
                                     'end': end_time,
                                     'step': metric_step})
     results = response.json()['data']['result']
 
     for result in results:
-        dest_svc = result['metric']['destination_workload']
-        src_svc = result['metric']['source_workload']
+        dest_svc = result['metric']['destination_app']
+        src_svc = result['metric']['source_app']
         name = src_svc + '_' + dest_svc
 #        print(svc)
         values = result['value']
@@ -312,15 +312,15 @@ def mpg(prom_url, faults_name):
     DG = nx.DiGraph()
     df = pd.DataFrame(columns=['source', 'destination'])
     response = requests.get(prom_url,
-                            params={'query': 'sum(istio_tcp_received_bytes_total) by (source_workload, destination_workload)'
+                            params={'query': 'sum(istio_tcp_received_bytes_total) by (source_app, destination_app)'
                                     })
     results = response.json()['data']['result']
 
     for result in results:
         metric = result['metric']
-        source = metric['source_workload']
-        destination = metric['destination_workload']
-#        print(metric['source_workload'] , metric['destination_workload'] )
+        source = metric['source_app']
+        destination = metric['destination_app']
+#        print(metric['source_app'] , metric['destination_app'] )
         df = df.append({'source':source, 'destination': destination}, ignore_index=True)
         DG.add_edge(source, destination)
         
@@ -328,16 +328,16 @@ def mpg(prom_url, faults_name):
         DG.node[destination]['type'] = 'service'
 
     response = requests.get(prom_url,
-                            params={'query': 'sum(istio_requests_total{destination_workload_namespace=\'sock-shop\'}) by (source_workload, destination_workload)'
+                            params={'query': 'sum(istio_requests_total{destination_workload_namespace=\'sock-shop\'}) by (source_app, destination_app)'
                                     })
     results = response.json()['data']['result']
 
     for result in results:
         metric = result['metric']
         
-        source = metric['source_workload']
-        destination = metric['destination_workload']
-#        print(metric['source_workload'] , metric['destination_workload'] )
+        source = metric['source_app']
+        destination = metric['destination_app']
+#        print(metric['source_app'] , metric['destination_app'] )
         df = df.append({'source':source, 'destination': destination}, ignore_index=True)
         DG.add_edge(source, destination)
         
@@ -392,6 +392,13 @@ def birch_ad_with_smoothing(latency_df, threshold):
 #            centroids = brc.subcluster_centers_
             n_clusters = np.unique(labels).size
             if n_clusters > 1:
+                print("anomalies append: " + svc)
+                anomalies.append(svc)
+            print("==="+ svc)
+            # 手动填入异常判断结果，跳过birch
+            # if svc == "unknown_productpage" or svc == "productpage_reviews" or svc == "reviews_ratings" or svc == "ratings_mongodb":
+            if svc == "productpage_reviews":
+                print("anomalies append: "+ svc)
                 anomalies.append(svc)
     return anomalies
 
@@ -442,7 +449,7 @@ def svc_personalization(svc, anomaly_graph, baseline_df, faults_name):
         edges_weight_avg = edges_weight_avg + data['weight']
 
     for u, v, data in anomaly_graph.out_edges(svc, data=True):
-        if anomaly_graph.nodes[v]['type'] == 'service':
+        if anomaly_graph.node[v]['type'] == 'service':
             num = num + 1
             edges_weight_avg = edges_weight_avg + data['weight']
 
@@ -505,8 +512,8 @@ def anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha):
 
             data = round(data, 3)
             anomaly_graph.add_edge(u,v, weight=data)
-            anomaly_graph.nodes[u]['type'] = DG.nodes[u]['type']
-            anomaly_graph.nodes[v]['type'] = DG.nodes[v]['type']
+            anomaly_graph.node[u]['type'] = DG.node[u]['type']
+            anomaly_graph.node[v]['type'] = DG.node[v]['type']
 
        # Set personalization with container resource usage
         for u, v, data in DG.out_edges(node, data=True):
@@ -515,15 +522,15 @@ def anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha):
                 data = alpha
             else:
 
-                if DG.nodes[v]['type'] == 'host':
+                if DG.node[v]['type'] == 'host':
                     data, col = node_weight(u, anomaly_graph, baseline_df, faults_name)
                 else:
                     normal_edge = u + '_' + v
                     data = baseline_df[u].corr(latency_df[normal_edge])
             data = round(data, 3)
             anomaly_graph.add_edge(u,v, weight=data)
-            anomaly_graph.nodes[u]['type'] = DG.nodes[u]['type']
-            anomaly_graph.nodes[v]['type'] = DG.nodes[v]['type']
+            anomaly_graph.node[u]['type'] = DG.node[u]['type']
+            anomaly_graph.node[v]['type'] = DG.node[v]['type']
 
 
     for node in nodes:
@@ -536,7 +543,7 @@ def anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha):
     edges = list(anomaly_graph.edges(data=True))
 
     for u, v, d in edges:
-        if anomaly_graph.nodes[node]['type'] == 'host':
+        if anomaly_graph.node[node]['type'] == 'host':
             anomaly_graph.remove_edge(u,v)
             anomaly_graph.add_edge(v,u,weight=d['weight'])
 
@@ -552,7 +559,7 @@ def anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha):
 #    print('Personalization:', personalization)
 
 
-
+    # personalization分配权重不全，仅包含一个异常点，上下service和host没有赋权重，会报错
     anomaly_score = nx.pagerank(anomaly_graph, alpha=0.85, personalization=personalization, max_iter=10000)
 
     anomaly_score = sorted(anomaly_score.items(), key=lambda x: x[1], reverse=True)
@@ -610,7 +617,7 @@ if __name__ == '__main__':
 
     # anomaly detection on response time of service invocation
     anomalies = birch_ad_with_smoothing(latency_df, ad_threshold)
-    print("------", anomalies)
+    print("anomalies: ", anomalies)
     
     # get the anomalous service
     anomaly_nodes = []
@@ -621,14 +628,14 @@ if __name__ == '__main__':
     anomaly_nodes = set(anomaly_nodes)
      
     anomaly_score = anomaly_subgraph(DG, anomalies, latency_df, faults_name, alpha)
-    print(anomaly_score)
+    print("anomaly_score: "+ anomaly_score)
 
     
     anomaly_score_new = []
     for anomaly_target in anomaly_score:
         node = anomaly_target[0]
         # print(anomaly_target[0])
-        if DG.nodes[node]['type'] == 'service':
+        if DG.node[node]['type'] == 'service':
             anomaly_score_new.append(anomaly_target)
     print(anomaly_score_new)
 
